@@ -7,9 +7,6 @@ WORKDIR /app
 # Copy all project files into the container
 COPY . .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
 # Expose port (if your AI has an API, e.g., using Flask)
 EXPOSE 5000
 
