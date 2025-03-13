@@ -12,11 +12,10 @@ import os
 @st.cache_data
 def load_xgb_model(path: str):
     model = xgb.XGBClassifier()
-    model.load_model(path)  # Charge le modèle XGBoost depuis un fichier
+    model.load_model(path)  
     return model
 
-# Chemin vers votre modèle XGBoost pré-entraîné (mettre le bon chemin)
-MODEL_PATH = "CancerPrediction/models/xgboost_trained_model.json"  # Remplacer par le bon chemin de votre modèle
+MODEL_PATH = "CancerPrediction/models/xgboost_trained_model.json"  
 model = load_xgb_model(MODEL_PATH)
 
 # =============================
