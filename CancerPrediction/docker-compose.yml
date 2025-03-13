@@ -1,1 +1,16 @@
+version: '3.8'
+
+services:
+  app:
+    image: python:3.9-slim  # Use an official Python image
+    container_name: data-analysis-app
+    working_dir: /app
+    volumes:
+      - .:/app  # Mount the current directory to /app inside the container
+    ports:
+      - "5000:5000"  # Optional: expose ports if needed for an API, etc.
+    environment:
+      - PYTHONUNBUFFERED=1  # Ensure logs appear in real-time
+    command: bash -c "pip install -r requirements.txt && python your_script.py"  # Replace with your script
+    restart: always
 
