@@ -5,7 +5,10 @@ import seaborn as sns
 from scipy.stats.mstats import winsorize
 from sklearn.impute import SimpleImputer
 from imblearn.over_sampling import SMOTE
+import pickle
+import json
 import shap
+
 # Pour la modélisation
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score
@@ -13,7 +16,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, reca
 # Modèles
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-from catboost import CatBoostClassifier
+from catboost import CatBoostClassifier  # Assurez-vous d'avoir installé catboost (pip install catboost)
 from sklearn.svm import SVC
 
 # Pipeline et normalisation pour SVM
@@ -204,138 +207,53 @@ if target_col not in data_final_reduced_optimized.columns:
     import sys
     sys.exit()
 
-# Séparation des features et de la cible pour la modélisation
-X = data_final_reduced_optimized.drop(columns=[target_col])
-y = data_final_reduced_optimized[target_col].astype(int)
+# Séparation des features (X) et de la cible (y)
+X_final = data_final_reduced_optimized.drop(columns=['Biopsy'])
+y_final = data_final_reduced_optimized['Biopsy']
 
-# On ne garde que les variables numériques
-X = X.select_dtypes(include=[np.number])
+# Division des données en ensembles d'entraînement et de test (80% train, 20% test)
+X_train, X_test, y_train, y_test = train_test_split(X_final, y_final, test_size=0.2, random_state=42)
 
-# Division en ensembles d'entraînement et de test avec stratification
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42
-)
-
-model_results = []
-
-
-# -------------------
-# XGBoost
-# -------------------
-xgb_params = {
-    'learning_rate': [0.01, 0.1],
-    'n_estimators': [100, 200],
-    'max_depth': [3, 6],
-    'scale_pos_weight': [1, 3]
-}
+# Initialisation du modèle XGBClassifier
 xgb_model = XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss')
-xgb_grid = GridSearchCV(xgb_model, xgb_params, cv=5, scoring='f1')
-xgb_grid.fit(X_train, y_train)
-xgb_best = xgb_grid.best_estimator_
-xgb_preds = xgb_best.predict(X_test)
-xgb_f1 = f1_score(y_test, xgb_preds)
-model_results.append({'Model': 'XGBoost', 'F1-score': xgb_f1})
 
-# -------------------
-# CatBoost Classifier
-# -------------------
-cat_params = {
-    'iterations': [100, 200],
-    'learning_rate': [0.01, 0.1],
-    'depth': [3, 6]
-}
-cat_model = CatBoostClassifier(random_state=42, verbose=0)
-cat_grid = GridSearchCV(cat_model, cat_params, cv=5, scoring='f1')
-cat_grid.fit(X_train, y_train)
-cat_best = cat_grid.best_estimator_
-cat_preds = cat_best.predict(X_test)
-cat_f1 = f1_score(y_test, cat_preds)
-model_results.append({'Model': 'CatBoost', 'F1-score': cat_f1})
+# Entraînement du modèle
+xgb_model.fit(X_train, y_train)
 
-# -------------------
-# SVM avec Pipeline (imputation + scaling + SVC)
-# -------------------
-svm_pipeline = Pipeline([
-    ('imputer', SimpleImputer(strategy='median')),
-    ('scaler', StandardScaler()),
-    ('svc', SVC(probability=True, random_state=42))
-])
-svm_params = {
-    'svc__C': [0.1, 1, 10],
-    'svc__kernel': ['linear', 'rbf'],
-    'svc__class_weight': ['balanced']
-}
-svm_grid = GridSearchCV(svm_pipeline, svm_params, cv=5, scoring='f1')
-svm_grid.fit(X_train, y_train)
-svm_best = svm_grid.best_estimator_
-svm_preds = svm_best.predict(X_test)
-svm_f1 = f1_score(y_test, svm_preds)
-model_results.append({'Model': 'SVM', 'F1-score': svm_f1})
-models = {
-    'XGBoost': xgb_best,
-    'CatBoost': cat_best,
-    'SVM': svm_best
-}
+# Prédictions sur l'ensemble de test
+y_pred = xgb_model.predict(X_test)
 
-results_metrics = []
+# Évaluation du modèle
+accuracy = accuracy_score(y_test, y_pred)
+roc_auc = roc_auc_score(y_test, y_pred)
 
-for name, model in models.items():
-    # Prédictions de classes
-    y_pred = model.predict(X_test)
-    # Calcul des probabilités pour le ROC-AUC
-    if hasattr(model, "predict_proba"):
-        y_proba = model.predict_proba(X_test)[:, 1]
-    elif hasattr(model, "decision_function"):
-        y_proba = model.decision_function(X_test)
-    else:
-        y_proba = y_pred 
-    roc_auc = roc_auc_score(y_test, y_proba)
-    accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred, zero_division=0)
-    recall = recall_score(y_test, y_pred, zero_division=0)
-    f1 = f1_score(y_test, y_pred)
-    
-    results_metrics.append({
-        "Model": name,
-        "ROC-AUC": roc_auc,
-        "Accuracy": accuracy,
-        "Precision": precision,
-        "Recall": recall,
-        "F1-score": f1
-    })
+# Affichage des résultats
+print(f"Accuracy du modèle : {accuracy:.4f}")
+print(f"ROC AUC Score : {roc_auc:.4f}")
 
-results_metrics_df = pd.DataFrame(results_metrics)
-print("\nÉvaluation des modèles :")
+# Utilisation de TreeExplainer pour XGBoost
+explainer = shap.TreeExplainer(xgb_model)
+shap_values = explainer.shap_values(X_test)  # Utilisation de X_test pour générer les valeurs SHAP
 
+# Cas binaire : shap_values est généralement un array 2D
+#   - Si shap_values est une liste (cas multi-classes), prendre shap_values[1] pour la classe positive
+#   - Sinon, directement shap_values
 
-
-
-# Sélection du meilleur modèle selon le F1-score (RandomForest dans ce cas)
-best_model_name = results_metrics_df.sort_values('F1-score', ascending=False).iloc[0]['Model']
-best_model = models[best_model_name]
-print(f"\nMeilleur modèle selon F1-score: {best_model_name}")
-
-print("\nDébut de l'analyse SHAP pour le meilleur modèle...")
-
-# Sélection de l'explainer selon le type de modèle
-if best_model_name in ['XGBoost', 'CatBoost']:
-    explainer = shap.TreeExplainer(best_model)
-    shap_values = explainer.shap_values(X_test)
-    # Pour la classification binaire, shap_values peut être une liste pour chaque classe.
-    if isinstance(shap_values, list) and len(shap_values) == 2:
-        shap_values = shap_values[1]
+# Pour la cohérence, on vérifie si shap_values est une liste (multi-class) ou non
+if isinstance(shap_values, list):
+    # On récupère la composante liée à la classe 1 (positive)
+    sv = shap_values[1]
 else:
-    # Pour le SVM, on utilise KernelExplainer sur un sous-échantillon pour gagner en temps de calcul.
-    background = shap.sample(X_train, 100, random_state=42)
-    explainer = shap.KernelExplainer(best_model.predict_proba, background)
-    shap_values = explainer.shap_values(X_test)
-    if isinstance(shap_values, list) and len(shap_values) == 2:
-        shap_values = shap_values[1]
+    sv = shap_values
 
-# Affichage des graphiques SHAP
-print("Affichage du summary plot SHAP (barplot)...")
-shap.summary_plot(shap_values, X_test, plot_type="bar")
+# --- Waterfall Plot ---
+# Utilisation de la première instance (index 0) de X_test pour le graphique SHAP
+fig, ax = plt.subplots(figsize=(8, 6))
+shap.waterfall_plot(shap.Explanation(values=sv[0],  # Valeurs SHAP pour la première observation de X_test
+                                     base_values=explainer.expected_value,
+                                     data=X_test.iloc[0, :],  # Les données associées à l'observation
+                                     feature_names=X_test.columns),  # Noms des caractéristiques
+                    max_display=10, show=False)
 
-print("Affichage du summary plot SHAP (détaillé)...")
-shap.summary_plot(shap_values, X_test)
-print(results_metrics_df)
+# Afficher le graphique avec Matplotlib
+plt.show()
