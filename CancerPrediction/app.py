@@ -6,6 +6,27 @@ import shap
 import matplotlib.pyplot as plt
 import os
 
+import base64
+
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+def set_background(webp_file):
+    bin_str = get_base64_of_bin_file(webp_file)
+    page_bg_img = f"""
+    <style>
+    .stApp {{
+        background-image: url("data:image/webp;base64,{bin_str}");
+        background-size: cover;
+        background-position: center;
+    }}
+    </style>
+    """
+    st.markdown(page_bg_img, unsafe_allow_html=True)
+
+set_background("CancerPrediction/Background.webp")
 # =============================
 # 1. CHARGEMENT DU MODÈLE XGBOOST
 # =============================
