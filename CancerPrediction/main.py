@@ -338,4 +338,4 @@ shap.summary_plot(shap_values, X_test, plot_type="bar")
 
 print("Affichage du summary plot SHAP (détaillé)...")
 shap.summary_plot(shap_values, X_test)
-print(results_metrics_df)*
+print(results_metrics_df)
