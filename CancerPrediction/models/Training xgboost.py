@@ -6,6 +6,8 @@ from scipy.stats.mstats import winsorize
 from sklearn.impute import SimpleImputer
 from imblearn.over_sampling import SMOTE
 import pickle
+import json
+import shap
 
 # Pour la modélisation
 from sklearn.model_selection import train_test_split, GridSearchCV
@@ -212,14 +214,14 @@ y_final = data_final_reduced_optimized['Biopsy']
 # Division des données en ensembles d'entraînement et de test (80% train, 20% test)
 X_train, X_test, y_train, y_test = train_test_split(X_final, y_final, test_size=0.2, random_state=42)
 
-# Initialisation du modèle RandomForestClassifier
-rf_model = RandomForestClassifier(random_state=42)
+# Initialisation du modèle XGBClassifier
+xgb_model = XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss')
 
 # Entraînement du modèle
-rf_model.fit(X_train, y_train)
+xgb_model.fit(X_train, y_train)
 
 # Prédictions sur l'ensemble de test
-y_pred = rf_model.predict(X_test)
+y_pred = xgb_model.predict(X_test)
 
 # Évaluation du modèle
 accuracy = accuracy_score(y_test, y_pred)
@@ -229,8 +231,48 @@ roc_auc = roc_auc_score(y_test, y_pred)
 print(f"Accuracy du modèle : {accuracy:.4f}")
 print(f"ROC AUC Score : {roc_auc:.4f}")
 
-# Sauvegarder le modèle sous format .pkl
-model_filename = 'random_forest_trained_model.pkl'
-with open(model_filename, 'wb') as model_file:
-    pickle.dump(rf_model, model_file)
-print(f"Modèle sauvegardé sous le nom : {model_filename}")
+# Sauvegarder le modèle XGBoost sous format .json
+model_filename = 'xgboost_trained_model.json'
+xgb_model.save_model(model_filename)
+print(f"Modèle XGBoost sauvegardé sous le nom : {model_filename}")
+
+# Charger le modèle depuis un fichier .json
+loaded_xgb_model = XGBClassifier()
+loaded_xgb_model.load_model(model_filename)
+
+# Faire des prédictions avec le modèle chargé
+y_pred_loaded = loaded_xgb_model.predict(X_test)
+
+# Réévaluation du modèle chargé
+accuracy_loaded = accuracy_score(y_test, y_pred_loaded)
+roc_auc_loaded = roc_auc_score(y_test, y_pred_loaded)
+
+# Affichage des résultats pour le modèle chargé
+print(f"Accuracy du modèle chargé : {accuracy_loaded:.4f}")
+print(f"ROC AUC Score du modèle chargé : {roc_auc_loaded:.4f}")
+# Utilisation de TreeExplainer pour XGBoost
+explainer = shap.TreeExplainer(xgb_model)
+shap_values = explainer.shap_values(X_test)  # Utilisation de X_test pour générer les valeurs SHAP
+
+# Cas binaire : shap_values est généralement un array 2D
+#   - Si shap_values est une liste (cas multi-classes), prendre shap_values[1] pour la classe positive
+#   - Sinon, directement shap_values
+
+# Pour la cohérence, on vérifie si shap_values est une liste (multi-class) ou non
+if isinstance(shap_values, list):
+    # On récupère la composante liée à la classe 1 (positive)
+    sv = shap_values[1]
+else:
+    sv = shap_values
+
+# --- Waterfall Plot ---
+# Utilisation de la première instance (index 0) de X_test pour le graphique SHAP
+fig, ax = plt.subplots(figsize=(8, 6))
+shap.waterfall_plot(shap.Explanation(values=sv[0],  # Valeurs SHAP pour la première observation de X_test
+                                     base_values=explainer.expected_value,
+                                     data=X_test.iloc[0, :],  # Les données associées à l'observation
+                                     feature_names=X_test.columns),  # Noms des caractéristiques
+                    max_display=10, show=False)
+
+# Afficher le graphique avec Matplotlib
+plt.show()
