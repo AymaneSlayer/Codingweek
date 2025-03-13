@@ -5,8 +5,6 @@ import seaborn as sns
 from scipy.stats.mstats import winsorize
 from sklearn.impute import SimpleImputer
 from imblearn.over_sampling import SMOTE
-import pickle
-import json
 import shap
 
 # Pour la modélisation

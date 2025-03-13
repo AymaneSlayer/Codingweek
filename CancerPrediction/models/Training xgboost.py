@@ -25,7 +25,6 @@ from sklearn.pipeline import Pipeline
 
 import warnings
 warnings.filterwarnings("ignore")
-url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00383/risk_factors_cervical_cancer.csv"
 data = pd.read_csv('CancerPrediction/data/data.csv')
 data = data.replace('?', pd.NA) # Replace '?' with NA
 data = data.apply(pd.to_numeric, errors='coerce') # Convert to numeric values
