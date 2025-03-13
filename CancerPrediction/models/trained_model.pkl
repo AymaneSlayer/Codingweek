@@ -1,1 +1,228 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats.mstats import winsorize
+from sklearn.impute import SimpleImputer
+from imblearn.over_sampling import SMOTE
+import shap
+import xgboost as xgb
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score
+import warnings
+warnings.filterwarnings("ignore")
+
+#####################################################
+# PARTIE 1 : CHARGEMENT & IMPUTATION DES DONNEES
+#####################################################
+
+# Importation de la data et gestion des valeurs manquantes
+url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00383/risk_factors_cervical_cancer.csv"
+data = pd.read_csv(url, header=0)
+data = data.replace('?', pd.NA)
+data = data.apply(pd.to_numeric, errors='coerce')
+
+# Suppression des colonnes avec plus de 50% de valeurs manquantes
+threshold = len(data) * 0.5  
+data_cleaned = data.dropna(thresh=threshold, axis=1)
+data_cleaned = data_cleaned.copy()  # Pour éviter les avertissements
+
+# Conversion de "Biopsy" en entier
+data_cleaned.loc[:, "Biopsy"] = data_cleaned["Biopsy"].astype(int)
+
+# Liste des colonnes supposées numériques (pour conversion explicite)
+numeric_cols_suspected = [
+    "Age",
+    "Number of sexual partners",
+    "First sexual intercourse",
+    "Num of pregnancies",
+    "Smokes",
+    "Smokes (years)",
+    "Smokes (packs/year)",
+    "Hormonal Contraceptives (years)",
+    "IUD (years)",
+    "STDs",
+    "STDs (number)",
+    "STDs: Number of diagnosis",
+    "STDs: Time since first diagnosis",
+    "STDs: Time since last diagnosis"
+]
+
+# Colonnes à traiter pour transformation log et winsorisation
+columns_to_treat = ['Age', 'First sexual intercourse']
+
+# Transformation log et winsorisation pour réduire l'asymétrie et limiter les outliers
+for col in columns_to_treat:
+    skew_val = data_cleaned[col].skew()
+    data_cleaned[col + '_log'] = np.log1p(data_cleaned[col])
+    winsorized_values = np.array(winsorize(data_cleaned[col + '_log'], limits=(0.05, 0.05)))
+    data_cleaned[col + '_log_winsorized'] = winsorized_values
+    print(f"Colonne '{col}' (skewness = {skew_val:.2f}): transformation log et winsorisation appliquées.")
+
+# Conversion explicite en float pour les colonnes suspectées
+for col in numeric_cols_suspected:
+    if col in data.columns:
+        data[col] = pd.to_numeric(data[col], errors='coerce')
+
+# Imputation des valeurs manquantes sur l'original (hors cible)
+for col in data.columns:
+    if col == "Biopsy":
+        continue
+    if data[col].dtype in [np.float64, np.int64]:
+        data[col].fillna(data[col].median(), inplace=True)
+    else:
+        mode_val = data[col].mode(dropna=True)
+        if not mode_val.empty:
+            data[col].fillna(mode_val[0], inplace=True)
+        else:
+            data[col].fillna("Inconnu", inplace=True)
+
+#####################################################
+# PARTIE 2 : PRÉPARATION DES DONNÉES POUR LA MODÉLISATION
+#####################################################
+
+# Utilisation de data_cleaned pour la préparation initiale
+X = data_cleaned.drop(columns=['Biopsy'])
+y = data_cleaned['Biopsy']
+
+# Division en ensembles d'entraînement et de test (pour SMOTE si besoin)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Imputation des valeurs manquantes dans X_train avec la médiane (pour SMOTE)
+imputer = SimpleImputer(strategy='median')
+X_train_imputed = imputer.fit_transform(X_train)
+
+# Application de SMOTE sur l'ensemble d'entraînement imputé
+smote = SMOTE(random_state=42)
+X_train_res, y_train_res = smote.fit_resample(X_train_imputed, y_train)
+
+print("\nRépartition des classes après SMOTE:")
+print(pd.Series(y_train_res).value_counts())
+
+# Application du même prétraitement sur X_test
+X_test_imputed = imputer.transform(X_test)
+
+#####################################################
+# PARTIE 3 : RÉDUCTION DE LA MULTICOLLINÉARITÉ
+#####################################################
+
+# Suppression des colonnes originales utilisées pour les transformations
+colonnes_a_exclure = ['Age', 'First sexual intercourse']
+data_final = data_cleaned.drop(columns=colonnes_a_exclure)
+
+# Calcul de la matrice de corrélation en valeurs absolues
+corr_matrix = data_final.corr().abs()
+
+# Extraction de la partie supérieure triangulaire pour éviter les doublons
+upper_triangle = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+
+# Identification des colonnes à supprimer si corrélation > 0.8 avec une autre variable
+to_drop = [column for column in upper_triangle.columns if any(upper_triangle[column] > 0.8)]
+
+# Suppression des colonnes identifiées
+data_final_reduced = data_final.drop(columns=to_drop)
+
+print("Colonnes supprimées :", to_drop)
+print("Dimensions du DataFrame réduit :", data_final_reduced.shape)
+
+# Affichage de la matrice de corrélation du DataFrame réduit via une heatmap
+plt.figure(figsize=(12, 10))
+sns.heatmap(data_final_reduced.corr(), annot=True, fmt=".2f", cmap="coolwarm")
+plt.title("Matrice de Corrélation - Données Réduites")
+plt.show()
+
+#####################################################
+# PARTIE 4 : ANALYSE EXPLORATOIRE DES DONNÉES (EDA)
+#####################################################
+
+print("Aperçu du dataset (5 premières lignes) :")
+print(data_final_reduced.head())
+
+print("\nDimensions (lignes, colonnes) :", data_final_reduced.shape)
+print("\nInformations sur les colonnes :")
+data_final_reduced.info()
+
+print("\nStatistiques descriptives (variables numériques) :")
+print(data_final_reduced.describe())
+
+print("\nValeurs manquantes par colonne après imputation :")
+print(data_final_reduced.isnull().sum())
+
+# Vérification de la cible
+target_col = 'Biopsy'
+if target_col in data_final_reduced.columns:
+    print("\nRépartition de la cible :")
+    print(data_final_reduced[target_col].value_counts())
+    print(data_final_reduced[target_col].value_counts(normalize=True) * 100)
+else:
+    print(f"\nATTENTION : la colonne '{target_col}' n'existe pas.")
+
+#####################################################
+# PARTIE 5 : OPTIMISATION DE LA MÉMOIRE
+#####################################################
+
+def optimize_memory(df: pd.DataFrame) -> pd.DataFrame:
+    df_optimized = df.copy()
+    for col in df_optimized.columns:
+        col_type = df_optimized[col].dtype
+        if col_type == 'float64':
+            df_optimized[col] = pd.to_numeric(df_optimized[col], downcast='float')
+        elif col_type == 'int64':
+            df_optimized[col] = pd.to_numeric(df_optimized[col], downcast='integer')
+        elif col_type == 'object':
+            num_unique = len(df_optimized[col].unique())
+            total_values = len(df_optimized[col])
+            if num_unique / total_values < 0.5:
+                df_optimized[col] = df_optimized[col].astype('category')
+    return df_optimized
+
+print("Mémoire avant optimisation :")
+print(data_final_reduced.memory_usage(deep=True))
+
+data_final_optimized = optimize_memory(data_final_reduced)
+
+print("\nMémoire après optimisation :")
+print(data_final_optimized.memory_usage(deep=True))
+
+#####################################################
+# PARTIE 6 : TRAINAGE DU MODÈLE XGBOOST ET INTERPRÉTATION AVEC SHAP
+#####################################################
+
+# Utilisation de data_final_reduced pour le modèle
+
+# Séparation des features (X) et de la cible (y)
+X_final = data_final_reduced.drop(columns=['Biopsy'])
+y_final = data_final_reduced['Biopsy']
+
+# Division en ensembles d'entraînement et de test
+X_train_final, X_test_final, y_train_final, y_test_final = train_test_split(X_final, y_final, test_size=0.2, random_state=42)
+
+# Entraînement du modèle XGBoost
+xgb_model = xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss')
+xgb_model.fit(X_train_final, y_train_final)
+
+# Prédictions sur l'ensemble de test
+y_pred = xgb_model.predict(X_test_final)
+
+# Évaluation du modèle
+print("\nPerformance du modèle XGBoost sur l'ensemble de test:")
+print("Accuracy :", accuracy_score(y_test_final, y_pred))
+print("Précision :", precision_score(y_test_final, y_pred))
+print("Recall :", recall_score(y_test_final, y_pred))
+print("F1 Score :", f1_score(y_test_final, y_pred))
+print("ROC AUC :", roc_auc_score(y_test_final, xgb_model.predict_proba(X_test_final)[:, 1]))
+# stockage du modèle
+xgb_model.save_model("xgboost_model.json")
+# Interprétation du modèle avec SHAP
+explainer = shap.TreeExplainer(xgb_model)
+shap_values = explainer.shap_values(X_train_final)
+print("\nType des valeurs SHAP :", type(shap_values))
+
+# Vérifier le type de shap_values et afficher le summary plot en conséquence
+if isinstance(shap_values, list):
+    # Pour un classifieur retournant une liste (cas multi-classes), choisir la classe positive (index 1)
+    shap.summary_plot(shap_values[1], X_train_final, feature_names=X_train_final.columns, plot_type="bar")
+else:
+    # Cas binaire où shap_values est déjà un array 2D
+    shap.summary_plot(shap_values, X_train_final, feature_names=X_train_final.columns, plot_type="bar")
 
