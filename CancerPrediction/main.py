@@ -210,20 +210,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 model_results = []
 
-# ------------------- Random Forest -------------------
-rf_params = {
-    'n_estimators': [100, 200],
-    'max_depth': [None, 5, 10],
-    'class_weight': ['balanced']
-}
-rf_model = RandomForestClassifier(random_state=42)
-rf_grid = GridSearchCV(rf_model, rf_params, cv=5, scoring='f1')
-rf_grid.fit(X_train, y_train)
-rf_best = rf_grid.best_estimator_
-rf_preds = rf_best.predict(X_test)
-rf_f1 = f1_score(y_test, rf_preds)
-model_results.append({'Model': 'RandomForest', 'F1-score': rf_f1})
-
 # ------------------- XGBoost -------------------
 xgb_params = {
     'learning_rate': [0.01, 0.1],
@@ -276,7 +262,6 @@ model_results.append({'Model': 'SVM', 'F1-score': svm_f1})
 #############################################
 
 models = {
-    'RandomForest': rf_best,
     'XGBoost': xgb_best,
     'CatBoost': cat_best,
     'SVM': svm_best
@@ -313,6 +298,31 @@ print(results_metrics_df)
 #############################################
 # PARTIE 8 : SHAP EXPLAINABILITY
 #############################################
+
+# Sélection du meilleur modèle selon le F1-score
+best_model_name = results_metrics_df.sort_values('F1-score', ascending=False).iloc[0]['Model']
+best_model = models[best_model_name]
+print(f"\nMeilleur modèle selon F1-score: {best_model_name}")
+
+print("Calcul des valeurs SHAP pour le meilleur modèle...")
+
+# En fonction du type de modèle, on choisit l'explainer approprié
+if best_model_name in ['XGBoost', 'CatBoost']:
+    # Utilisation de TreeExplainer pour les modèles basés sur des arbres
+    explainer = shap.TreeExplainer(best_model)
+    shap_values = explainer.shap_values(X_test)
+else:
+    # Pour le modèle SVM (pipeline), on utilise KernelExplainer
+    # On sélectionne un sous-échantillon de X_train comme background pour réduire le temps de calcul
+    background = shap.sample(X_train, 100, random_state=42)
+    # Définition d'une fonction de prédiction qui retourne la probabilité de la classe positive
+    predict_fn = lambda x: best_model.predict_proba(x)[:, 1]
+    explainer = shap.KernelExplainer(predict_fn, background)
+    shap_values = explainer.shap_values(X_test)
+
+# Visualisation de l'importance des features via un summary plot
+shap.summary_plot(shap_values, X_test, feature_names=X_test.columns)
+
 
 # Sélection du meilleur modèle selon le F1-score (RandomForest dans ce cas)
 best_model_name = results_metrics_df.sort_values('F1-score', ascending=False).iloc[0]['Model']
