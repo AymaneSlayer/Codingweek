@@ -5,34 +5,41 @@ import seaborn as sns
 from scipy.stats.mstats import winsorize
 from sklearn.impute import SimpleImputer
 from imblearn.over_sampling import SMOTE
+
+# Pour la modélisation
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score
+
+# Modèles
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-from catboost import CatBoostClassifier
+from catboost import CatBoostClassifier  # Assurez-vous d'avoir installé catboost (pip install catboost)
 from sklearn.svm import SVC
+
+# Pipeline et normalisation pour SVM
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
-import shap
+
 import warnings
 warnings.filterwarnings("ignore")
-
-#############################################
-# PARTIE 1 : CHARGEMENT & IMPUTATION DES DONNÉES
-#############################################
-
 url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00383/risk_factors_cervical_cancer.csv"
 data = pd.read_csv(url, header=0)
-data = data.replace('?', pd.NA)
-data = data.apply(pd.to_numeric, errors='coerce')
-
-# Suppression des colonnes avec plus de 50% de valeurs manquantes
+data = data.replace('?', pd.NA) # Replace '?' with NA
+data = data.apply(pd.to_numeric, errors='coerce') # Convert to numeric values
+print(data.head())
 threshold = len(data) * 0.5  
-data_cleaned = data.dropna(thresh=threshold, axis=1).copy()
+data_cleaned = data.dropna(thresh=threshold, axis=1)
+data_cleaned = data_cleaned.copy()  # Pour éviter les avertissements
 
 # Conversion de "Biopsy" en entier
 data_cleaned.loc[:, "Biopsy"] = data_cleaned["Biopsy"].astype(int)
+# Liste des colonnes avant et après traitement
+columns_before = data.columns
+columns_after = data_cleaned.columns
 
+# Colonnes supprimées
+removed_columns = list(set(columns_before) - set(columns_after))
+print("Colonnes supprimées : ", removed_columns)
 # Liste des colonnes supposées numériques (pour conversion explicite)
 numeric_cols_suspected = [
     "Age",
@@ -50,24 +57,18 @@ numeric_cols_suspected = [
     "STDs: Time since first diagnosis",
     "STDs: Time since last diagnosis"
 ]
-
-# Colonnes à traiter pour transformation log et winsorisation
+# Conversion explicite en float pour les colonnes suspectées
+for col in numeric_cols_suspected:
+    if col in data.columns:
+        data[col] = pd.to_numeric(data[col], errors='coerce')
+print(data[numeric_cols_suspected].dtypes)
 columns_to_treat = ['Age', 'First sexual intercourse']
-
-# Transformation log et winsorisation pour réduire l'asymétrie et limiter les outliers
 for col in columns_to_treat:
     skew_val = data_cleaned[col].skew()
     data_cleaned[col + '_log'] = np.log1p(data_cleaned[col])
     winsorized_values = np.array(winsorize(data_cleaned[col + '_log'], limits=(0.05, 0.05)))
     data_cleaned[col + '_log_winsorized'] = winsorized_values
     print(f"Colonne '{col}' (skewness = {skew_val:.2f}): transformation log et winsorisation appliquées.")
-
-# Conversion explicite en float pour les colonnes suspectées
-for col in numeric_cols_suspected:
-    if col in data.columns:
-        data[col] = pd.to_numeric(data[col], errors='coerce')
-
-# Imputation des valeurs manquantes sur l'original (hors cible)
 for col in data.columns:
     if col == "Biopsy":
         continue
@@ -79,12 +80,11 @@ for col in data.columns:
             data[col].fillna(mode_val[0], inplace=True)
         else:
             data[col].fillna("Inconnu", inplace=True)
-
-#############################################
-# PARTIE 2 : PRÉPARATION DES DONNÉES POUR LA MODÉLISATION
-#############################################
-
-# Séparation des features et de la cible à partir de data_cleaned
+# Vérifier les valeurs manquantes après imputation
+missing_values = data.isnull().sum()
+print("Valeurs manquantes après imputation :")
+print(missing_values)
+# Séparation des features (X) et de la cible (y) à partir de data_cleaned
 X = data_cleaned.drop(columns=['Biopsy'])
 y = data_cleaned['Biopsy']
 
@@ -98,17 +98,17 @@ X_train_imputed = imputer.fit_transform(X_train)
 # Application de SMOTE sur l'ensemble d'entraînement imputé
 smote = SMOTE(random_state=42)
 X_train_res, y_train_res = smote.fit_resample(X_train_imputed, y_train)
-
+nouveau_data = pd.DataFrame(X_train_res, columns=X.columns)
+nouveau_data['Biopsy'] = y_train_res
+print(nouveau_data.columns)
 print("\nRépartition des classes après SMOTE:")
 print(pd.Series(y_train_res).value_counts())
+# Ajout de la colonne 'Biopsy' au DataFrame 'data_final'
+data_final = nouveau_data.copy()
 
-#############################################
-# PARTIE 3 : RÉDUCTION DE LA MULTICOLLINÉARITÉ
-#############################################
-
-# On retire les colonnes originales utilisées pour les transformations
+# Retirer les colonnes non nécessaires
 colonnes_a_exclure = ['Age', 'First sexual intercourse']
-data_final = data_cleaned.drop(columns=colonnes_a_exclure)
+data_final = data_final.drop(columns=colonnes_a_exclure)
 
 # Calcul de la matrice de corrélation en valeurs absolues
 corr_matrix = data_final.corr().abs()
@@ -122,18 +122,21 @@ to_drop = [column for column in upper_triangle.columns if any(upper_triangle[col
 # Suppression des colonnes identifiées
 data_final_reduced = data_final.drop(columns=to_drop)
 
+# Ajout de la colonne 'Biopsy' au DataFrame réduit
+data_final_reduced['Biopsy'] = data_final['Biopsy']
+
+# Affichage des colonnes supprimées et des dimensions du DataFrame réduit
 print("Colonnes supprimées :", to_drop)
 print("Dimensions du DataFrame réduit :", data_final_reduced.shape)
 
-# Affichage de la matrice de corrélation via une heatmap
+# Affichage de la matrice de corrélation du DataFrame réduit via une heatmap
 plt.figure(figsize=(12, 10))
 sns.heatmap(data_final_reduced.corr(), annot=True, fmt=".2f", cmap="coolwarm")
 plt.title("Matrice de Corrélation - Données Réduites")
 plt.show()
 
-#############################################
-# PARTIE 4 : ANALYSE EXPLORATOIRE DES DONNÉES (EDA)
-#############################################
+# Affichage des colonnes du DataFrame réduit
+print(data_final_reduced.columns)
 
 print("Aperçu du dataset (5 premières lignes) :")
 print(data_final_reduced.head())
@@ -147,70 +150,93 @@ print(data_final_reduced.describe())
 
 print("\nValeurs manquantes par colonne après imputation :")
 print(data_final_reduced.isnull().sum())
+def reduce_memory_usage(df):
+    start_mem = df.memory_usage().sum() / 1024**2  # Taille initiale en MB
+    print(f'Mémoire avant optimisation : {start_mem:.2f} MB')
+    
+    for col in df.columns:
+        col_type = df[col].dtype
+
+        if col_type != 'object':  # Pour les colonnes numériques
+            c_min = df[col].min()
+            c_max = df[col].max()
+
+            # Conversion des types int en fonction de la plage des valeurs
+            if str(col_type)[:3] == 'int':
+                if c_min >= np.iinfo(np.int8).min and c_max <= np.iinfo(np.int8).max:
+                    df[col] = df[col].astype(np.int8)
+                elif c_min >= np.iinfo(np.int16).min and c_max <= np.iinfo(np.int16).max:
+                    df[col] = df[col].astype(np.int16)
+                elif c_min >= np.iinfo(np.int32).min and c_max <= np.iinfo(np.int32).max:
+                    df[col] = df[col].astype(np.int32)
+                elif c_min >= np.iinfo(np.int64).min and c_max <= np.iinfo(np.int64).max:
+                    df[col] = df[col].astype(np.int64)
+            
+            # Conversion des types float en fonction de la plage des valeurs
+            else:
+                if c_min >= np.finfo(np.float32).min and c_max <= np.finfo(np.float32).max:
+                    df[col] = df[col].astype(np.float32)
+                else:
+                    df[col] = df[col].astype(np.float64)
+
+        else:  # Pour les colonnes 'object', on les convertit en 'category' si possible
+            df[col] = df[col].astype('category')
+
+    end_mem = df.memory_usage().sum() / 1024**2  # Taille après optimisation
+    print(f'Mémoire après optimisation : {end_mem:.2f} MB')
+    print(f'Reduction de mémoire : {100 * (start_mem - end_mem) / start_mem:.2f}%')
+    
+    return df
+
+# Exemple d'utilisation de la fonction sur votre DataFrame 'data_final_reduced'
+data_final_reduced_optimized = reduce_memory_usage(data_final_reduced)
 
 # Vérification de la cible
 target_col = 'Biopsy'
-if target_col in data_final_reduced.columns:
+if target_col in data_final_reduced_optimized.columns:
     print("\nRépartition de la cible :")
-    print(data_final_reduced[target_col].value_counts())
-    print(data_final_reduced[target_col].value_counts(normalize=True) * 100)
+    print(data_final_reduced_optimized[target_col].value_counts())
+    print(data_final_reduced_optimized[target_col].value_counts(normalize=True) * 100)
 else:
     print(f"\nATTENTION : la colonne '{target_col}' n'existe pas.")
-
-#############################################
-# PARTIE 5 : OPTIMISATION DE LA MÉMOIRE
-#############################################
-
-def optimize_memory(df):
-    """Optimise l'utilisation mémoire en ajustant les types de données."""
-    start_mem = df.memory_usage(deep=True).sum() / 1024**2
-    print(f"\nMémoire utilisée avant optimisation: {start_mem:.2f} Mo")
-    for col in df.columns:
-        col_type = df[col].dtype
-        if col_type != object:  # On traite uniquement les colonnes numériques
-            c_min = df[col].min()
-            c_max = df[col].max()
-            if str(col_type)[:3] == 'int':
-                if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
-                    df[col] = df[col].astype(np.int8)
-                elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
-                    df[col] = df[col].astype(np.int16)
-                elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
-                    df[col] = df[col].astype(np.int32)
-            else:
-                df[col] = df[col].astype(np.float32)
-    end_mem = df.memory_usage(deep=True).sum() / 1024**2
-    print(f"Mémoire utilisée après optimisation: {end_mem:.2f} Mo")
-    print(f"Réduction de {(100 * (start_mem - end_mem) / start_mem):.1f}%\n")
-    return df
-
-# Application de l'optimisation sur le DataFrame réduit
-data_final_optimized = optimize_memory(data_final_reduced.copy())
-
-#############################################
-# PARTIE 6 : MODÉLISATION
-#############################################
-
-if target_col not in data_final_optimized.columns:
+if target_col not in data_final_reduced_optimized.columns:
     print("Impossible de procéder à la modélisation : cible introuvable.")
     import sys
     sys.exit()
 
 # Séparation des features et de la cible pour la modélisation
-X_model = data_final_optimized.drop(columns=[target_col])
-y_model = data_final_optimized[target_col].astype(int)
+X = data_final_reduced_optimized.drop(columns=[target_col])
+y = data_final_reduced_optimized[target_col].astype(int)
 
 # On ne garde que les variables numériques
-X_model = X_model.select_dtypes(include=[np.number])
+X = X.select_dtypes(include=[np.number])
 
 # Division en ensembles d'entraînement et de test avec stratification
 X_train, X_test, y_train, y_test = train_test_split(
-    X_model, y_model, test_size=0.2, stratify=y_model, random_state=42
+    X, y, test_size=0.2, stratify=y, random_state=42
 )
 
 model_results = []
 
-# ------------------- XGBoost -------------------
+# -------------------
+# Random Forest
+# -------------------
+rf_params = {
+    'n_estimators': [100, 200],
+    'max_depth': [None, 5, 10],
+    'class_weight': ['balanced']
+}
+rf_model = RandomForestClassifier(random_state=42)
+rf_grid = GridSearchCV(rf_model, rf_params, cv=5, scoring='f1')
+rf_grid.fit(X_train, y_train)
+rf_best = rf_grid.best_estimator_
+rf_preds = rf_best.predict(X_test)
+rf_f1 = f1_score(y_test, rf_preds)
+model_results.append({'Model': 'RandomForest', 'F1-score': rf_f1})
+
+# -------------------
+# XGBoost
+# -------------------
 xgb_params = {
     'learning_rate': [0.01, 0.1],
     'n_estimators': [100, 200],
@@ -225,7 +251,9 @@ xgb_preds = xgb_best.predict(X_test)
 xgb_f1 = f1_score(y_test, xgb_preds)
 model_results.append({'Model': 'XGBoost', 'F1-score': xgb_f1})
 
-# ------------------- CatBoost -------------------
+# -------------------
+# CatBoost Classifier
+# -------------------
 cat_params = {
     'iterations': [100, 200],
     'learning_rate': [0.01, 0.1],
@@ -239,7 +267,9 @@ cat_preds = cat_best.predict(X_test)
 cat_f1 = f1_score(y_test, cat_preds)
 model_results.append({'Model': 'CatBoost', 'F1-score': cat_f1})
 
-# ------------------- SVM avec Pipeline -------------------
+# -------------------
+# SVM avec Pipeline (imputation + scaling + SVC)
+# -------------------
 svm_pipeline = Pipeline([
     ('imputer', SimpleImputer(strategy='median')),
     ('scaler', StandardScaler()),
@@ -256,26 +286,25 @@ svm_best = svm_grid.best_estimator_
 svm_preds = svm_best.predict(X_test)
 svm_f1 = f1_score(y_test, svm_preds)
 model_results.append({'Model': 'SVM', 'F1-score': svm_f1})
-
-#############################################
-# PARTIE 7 : ÉVALUATION DES MODÈLES
-#############################################
-
 models = {
+    'RandomForest': rf_best,
     'XGBoost': xgb_best,
     'CatBoost': cat_best,
     'SVM': svm_best
 }
 
 results_metrics = []
+
 for name, model in models.items():
+    # Prédictions de classes
     y_pred = model.predict(X_test)
+    # Calcul des probabilités pour le ROC-AUC (selon méthode disponible)
     if hasattr(model, "predict_proba"):
         y_proba = model.predict_proba(X_test)[:, 1]
     elif hasattr(model, "decision_function"):
         y_proba = model.decision_function(X_test)
     else:
-        y_proba = y_pred
+        y_proba = y_pred  # solution de secours
     roc_auc = roc_auc_score(y_test, y_proba)
     accuracy = accuracy_score(y_test, y_pred)
     precision = precision_score(y_test, y_pred, zero_division=0)
@@ -294,37 +323,3 @@ for name, model in models.items():
 results_metrics_df = pd.DataFrame(results_metrics)
 print("\nÉvaluation des modèles :")
 print(results_metrics_df)
-
-#############################################
-# PARTIE 8 : SHAP EXPLAINABILITY
-#############################################
-
-# Sélection du meilleur modèle selon le F1-score
-best_model_name = results_metrics_df.sort_values('F1-score', ascending=False).iloc[0]['Model']
-best_model = models[best_model_name]
-print(f"\nMeilleur modèle selon F1-score: {best_model_name}")
-
-print("Calcul des valeurs SHAP pour le meilleur modèle...")
-
-# En fonction du type de modèle, on choisit l'explainer approprié
-if best_model_name in ['XGBoost', 'CatBoost']:
-    # Utilisation de TreeExplainer pour les modèles basés sur des arbres
-    explainer = shap.TreeExplainer(best_model)
-    shap_values = explainer.shap_values(X_test)
-else:
-    # Pour le modèle SVM (pipeline), on utilise KernelExplainer
-    # On sélectionne un sous-échantillon de X_train comme background pour réduire le temps de calcul
-    background = shap.sample(X_train, 100, random_state=42)
-    # Définition d'une fonction de prédiction qui retourne la probabilité de la classe positive
-    predict_fn = lambda x: best_model.predict_proba(x)[:, 1]
-    explainer = shap.KernelExplainer(predict_fn, background)
-    shap_values = explainer.shap_values(X_test)
-
-# Visualisation de l'importance des features via un summary plot
-shap.summary_plot(shap_values, X_test, feature_names=X_test.columns)
-
-
-# Sélection du meilleur modèle selon le F1-score (RandomForest dans ce cas)
-best_model_name = results_metrics_df.sort_values('F1-score', ascending=False).iloc[0]['Model']
-best_model = models[best_model_name]
-print(f"\nMeilleur modèle selon F1-score: {best_model_name}")
