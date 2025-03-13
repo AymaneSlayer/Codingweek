@@ -5,7 +5,7 @@ import seaborn as sns
 from scipy.stats.mstats import winsorize
 from sklearn.impute import SimpleImputer
 from imblearn.over_sampling import SMOTE
-
+import shap
 # Pour la modélisation
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score
@@ -13,7 +13,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, reca
 # Modèles
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-from catboost import CatBoostClassifier  # Assurez-vous d'avoir installé catboost (pip install catboost)
+from catboost import CatBoostClassifier
 from sklearn.svm import SVC
 
 # Pipeline et normalisation pour SVM
@@ -218,21 +218,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 model_results = []
 
-# -------------------
-# Random Forest
-# -------------------
-rf_params = {
-    'n_estimators': [100, 200],
-    'max_depth': [None, 5, 10],
-    'class_weight': ['balanced']
-}
-rf_model = RandomForestClassifier(random_state=42)
-rf_grid = GridSearchCV(rf_model, rf_params, cv=5, scoring='f1')
-rf_grid.fit(X_train, y_train)
-rf_best = rf_grid.best_estimator_
-rf_preds = rf_best.predict(X_test)
-rf_f1 = f1_score(y_test, rf_preds)
-model_results.append({'Model': 'RandomForest', 'F1-score': rf_f1})
 
 # -------------------
 # XGBoost
@@ -287,7 +272,6 @@ svm_preds = svm_best.predict(X_test)
 svm_f1 = f1_score(y_test, svm_preds)
 model_results.append({'Model': 'SVM', 'F1-score': svm_f1})
 models = {
-    'RandomForest': rf_best,
     'XGBoost': xgb_best,
     'CatBoost': cat_best,
     'SVM': svm_best
@@ -298,13 +282,13 @@ results_metrics = []
 for name, model in models.items():
     # Prédictions de classes
     y_pred = model.predict(X_test)
-    # Calcul des probabilités pour le ROC-AUC (selon méthode disponible)
+    # Calcul des probabilités pour le ROC-AUC
     if hasattr(model, "predict_proba"):
         y_proba = model.predict_proba(X_test)[:, 1]
     elif hasattr(model, "decision_function"):
         y_proba = model.decision_function(X_test)
     else:
-        y_proba = y_pred  # solution de secours
+        y_proba = y_pred 
     roc_auc = roc_auc_score(y_test, y_proba)
     accuracy = accuracy_score(y_test, y_pred)
     precision = precision_score(y_test, y_pred, zero_division=0)
@@ -322,4 +306,36 @@ for name, model in models.items():
 
 results_metrics_df = pd.DataFrame(results_metrics)
 print("\nÉvaluation des modèles :")
-print(results_metrics_df)
+
+
+
+
+# Sélection du meilleur modèle selon le F1-score (RandomForest dans ce cas)
+best_model_name = results_metrics_df.sort_values('F1-score', ascending=False).iloc[0]['Model']
+best_model = models[best_model_name]
+print(f"\nMeilleur modèle selon F1-score: {best_model_name}")
+
+print("\nDébut de l'analyse SHAP pour le meilleur modèle...")
+
+# Sélection de l'explainer selon le type de modèle
+if best_model_name in ['XGBoost', 'CatBoost']:
+    explainer = shap.TreeExplainer(best_model)
+    shap_values = explainer.shap_values(X_test)
+    # Pour la classification binaire, shap_values peut être une liste pour chaque classe.
+    if isinstance(shap_values, list) and len(shap_values) == 2:
+        shap_values = shap_values[1]
+else:
+    # Pour le SVM, on utilise KernelExplainer sur un sous-échantillon pour gagner en temps de calcul.
+    background = shap.sample(X_train, 100, random_state=42)
+    explainer = shap.KernelExplainer(best_model.predict_proba, background)
+    shap_values = explainer.shap_values(X_test)
+    if isinstance(shap_values, list) and len(shap_values) == 2:
+        shap_values = shap_values[1]
+
+# Affichage des graphiques SHAP
+print("Affichage du summary plot SHAP (barplot)...")
+shap.summary_plot(shap_values, X_test, plot_type="bar")
+
+print("Affichage du summary plot SHAP (détaillé)...")
+shap.summary_plot(shap_values, X_test)
+print(results_metrics_df)*
