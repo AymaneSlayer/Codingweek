@@ -1,3 +1,28 @@
+# Cervical Cancer Risk Prediction
+## Project Overview
+This repository contains the code and resources for predicting cervical cancer risk using machine learning models. The project focuses on data preprocessing, handling class imbalance, feature engineering, model training, evaluation, and explainability through SHAP.
+## Repository Structure
+Dockerfile: Defines the environment setup for running the application in a containerized environment.
+
+notebooks/: Jupyter notebooks containing exploratory data analysis (EDA), feature engineering, and initial model training.
+
+app.py: Streamlit/Flask-based web application for user interaction and predictions.
+
+main.py: The main script for data processing, model training, and evaluation.
+
+requirements.txt: List of dependencies required for running the project.
+
+
+
+
+
+
+
+
+
+
+
+
 # Was the dataset balanced? How was class imbalance handled, and what was the impact?
   The dataset was imbalanced, as cervical cancer cases were significantly fewer than non-cases. To address this, we applied the SMOTE technique: This method generated 
   synthetic samples for the minority class, increasing its representation in the dataset.We eventually got a database that consists of 642 samples for each case,
