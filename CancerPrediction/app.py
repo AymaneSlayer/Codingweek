@@ -28,7 +28,7 @@ def set_background(webp_file):
     st.markdown(page_bg_img, unsafe_allow_html=True)
 
 # Définition de l'image de fond
-set_background("CancerPrediction/Background.webp")
+set_background("CancerPrediction/background.webp")
 
 # --- Injection de CSS pour améliorer le design de la sidebar et des éléments de saisie ---
 st.markdown(
@@ -75,7 +75,7 @@ explainer = shap.TreeExplainer(model)
 # =============================
 # 3. INTERFACE STREAMLIT
 # =============================
-st.title("🩺 Interface de dépistage du cancer du col de l'utérus")
+st.title("🩺dépistage du cancer du col de l'utérus")
 
 # Barre latérale pour la saisie des informations du patient
 st.sidebar.header("📝 Informations du patient")
