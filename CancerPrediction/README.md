@@ -37,6 +37,25 @@ We trained and optimized three models—XGBoost, CatBoost, and SVM (with imputat
 
 ### According to SHAP, which features most strongly influence cervical cancer predictions?
 SHAP was used to interpret the model’s predictions. The top influencing features were:
-Schiller-Number of sexual partners-Hormonal Contraceptives (years)-Age log-Citology, in this order.We got 
-these results by A TreeExplainer that got applied on the XGBoost model to generate SHAP values using the test set.A waterfall plot is produced for a single observation (the first instance from the test set) to visually 
-demonstrate how each feature contributes to pushing the model output toward a particular prediction
+Schiller-Number of sexual partners-Hormonal Contraceptives (years)-Age log-Citology, in this order.We got these results by A TreeExplainer that got applied on the XGBoost model to generate SHAP values using the test set.A waterfall plot is produced for a single observation (the first instance from the test set) to visually demonstrate how each feature contributes to pushing the model output toward a particular prediction
+
+##  Insights from Prompt Engineering
+
+### Data preprocessing
+Prompt 1: Missing Values 
+"Écris un code simple pour vérifier s'il y a des valeurs manquantes dans le dataset et suggérer comment les traiter"
+==>#Vérification des valeurs manquantes
+print("Valeurs manquantes avant imputation:")
+print(data.isnull().sum())
+
+#Imputation : médiane pour les numériques et mode pour les catégorielles
+for col in data.columns:
+    if data[col].dtype in [np.float64, np.int64]:
+        data[col].fillna(data[col].median(), inplace=True)
+    else:
+        mode_val = data[col].mode(dropna=True)
+        data[col].fillna(mode_val[0] if not mode_val.empty else "Inconnu", inplace=True)
+
+#Vérification après imputation
+print("\nValeurs manquantes après imputation:")
+print(data.isnull().sum())
