@@ -41,8 +41,8 @@ Schiller-Number of sexual partners-Hormonal Contraceptives (years)-Age log-Citol
 
 ##  Insights from Prompt Engineering
 
-### Data preprocessing
-Prompt 1: Missing Values 
+
+### Prompt 1: Missing Values 
 "Écris un code simple pour vérifier s'il y a des valeurs manquantes dans le dataset et suggérer comment les traiter"
 ==>#Vérification des valeurs manquantes
 print("Valeurs manquantes avant imputation:")
@@ -59,3 +59,87 @@ for col in data.columns:
 #Vérification après imputation
 print("\nValeurs manquantes après imputation:")
 print(data.isnull().sum())
+
+### Prompt 2: Outliers
+"Écris un code simple pour détecter et gérer les outliers sur les colonnes avec une distribution très asymétrique, en appliquant une transformation logarithmique et une winsorisation."
+==>#Pour les colonnes 'Age' et 'First sexual intercourse'
+colonnes_a_traiter = ['Age', 'First sexual intercourse']
+for col in colonnes_a_traiter:
+    skew_val = data_cleaned[col].skew()
+    #Transformation logarithmique
+    data_cleaned[col + '_log'] = np.log1p(data_cleaned[col])
+    #Winsorisation pour limiter les valeurs extrêmes
+    data_cleaned[col + '_log_winsorized'] = winsorize(data_cleaned[col + '_log'], limits=(0.05, 0.05))
+    print(f"Colonne '{col}' (skewness = {skew_val:.2f}): transformation log et winsorisation appliquées.")
+
+
+### Prompt 3: Class Imbalance
+"Écris un code simple pour appliquer SMOTE pour équilibrer le dataset (cas d'un déséquilibre significatif, par exemple 85% 'No risk' et 15% 'At risk')."
+==>#Vérification de la répartition de la cible
+print("Répartition des classes avant SMOTE:")
+print(y.value_counts())
+
+#Application de SMOTE pour équilibrer les classes
+imputer = SimpleImputer(strategy='median')
+X_train_imputed = imputer.fit_transform(X_train)
+smote = SMOTE(random_state=42)
+X_train_res, y_train_res = smote.fit_resample(X_train_imputed, y_train)
+
+#Affichage de la nouvelle répartition
+print("\nRépartition des classes après SMOTE:")
+print(pd.Series(y_train_res).value_counts())
+
+### Prompt 4: Corrélation
+"écris moi un code qui affiche la matrice de corrélation et supprime les features trop corrélées (seuil > 0.8)."
+==># Ajout de la colonne 'Biopsy' au DataFrame final
+data_final = nouveau_data.copy()
+
+#Retrait des colonnes non nécessaires
+colonnes_a_exclure = ['Age', 'First sexual intercourse']
+data_final = data_final.drop(columns=colonnes_a_exclure)
+
+#Calcul de la matrice de corrélation en valeurs absolues
+corr_matrix = data_final.corr().abs()
+
+#Extraction de la partie supérieure triangulaire pour éviter les doublons
+upper_triangle = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+
+#Identification des colonnes à supprimer si corrélation > 0.8
+to_drop = [column for column in upper_triangle.columns if any(upper_triangle[column] > 0.8)]
+
+#Suppression des colonnes identifiées
+data_final_reduced = data_final.drop(columns=to_drop)
+
+#Réintégration de la colonne cible
+data_final_reduced['Biopsy'] = data_final['Biopsy']
+
+#Affichage des colonnes supprimées et des dimensions du DataFrame réduit
+print("Colonnes supprimées :", to_drop)
+print("Dimensions du DataFrame réduit :", data_final_reduced.shape)
+plt.figure(figsize=(12, 10))
+sns.heatmap(data_final_reduced.corr(), annot=True, fmt=".2f", cmap="coolwarm")
+plt.title("Matrice de Corrélation - Données Réduites")
+plt.show()
+
+#Affichage des informations sur le DataFrame réduit
+print(data_final_reduced.columns)
+print(data_final_reduced['Biopsy'].value_counts())
+print("Aperçu du dataset (5 premières lignes) :")
+print(data_final_reduced.head())
+print("\nDimensions (lignes, colonnes) :", data_final_reduced.shape)
+print("\nInformations sur les colonnes :")
+data_final_reduced.info()
+print("\nStatistiques descriptives (variables numériques) :")
+print(data_final_reduced.describe())
+print("\nValeurs manquantes par colonne après imputation :")
+print(data_final_reduced.isnull().sum())
+
+#Vérification de la présence de la cible
+target_col = 'Biopsy'
+if target_col in data_final_reduced.columns:
+    print("\nRépartition de la cible :")
+    print(data_final_reduced[target_col].value_counts())
+    print(data_final_reduced[target_col].value_counts(normalize=True) * 100)
+else:
+    print(f"\nATTENTION : la colonne '{target_col}' n'existe pas.")
+
