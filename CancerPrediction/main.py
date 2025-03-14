@@ -386,7 +386,7 @@ print(f"Accuracy du modèle : {accuracy:.4f}")
 print(f"ROC AUC Score : {roc_auc:.4f}")
 
 # =====================================================
-# Analyse d'interprétabilité avec SHAP (partie inchangée)
+# Analyse d'interprétabilité avec SHAP 
 # =====================================================
 # Utilisation de TreeExplainer pour XGBoost
 explainer = shap.TreeExplainer(xgb_model)

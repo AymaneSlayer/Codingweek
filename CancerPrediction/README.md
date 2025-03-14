@@ -138,9 +138,11 @@ else:
     print(f"\nATTENTION : la colonne '{target_col}' n'existe pas.")
 ```
 Some insights concerning the prompts:
+
   The prompts proved highly effective in breaking down complex preprocessing tasks into clear, manageable steps. They guided the process by clearly addressing 
   missing values, outlier management, class imbalance, and correlation analysis, which helped us alot especially when we had to choose a method between a bunch of 
   them (Oversampling (SMOTE),Undersampling,Class-weighting technique).
+  
   This approach made the project more reproducible.However, there is little to no room for improvement except exploring other methods that could make a better 
   memory optimisation, but we chose the simpler methods over efficiency so we can have a better understanding.
 
