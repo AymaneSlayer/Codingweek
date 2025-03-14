@@ -9,7 +9,7 @@ class CancerDataLoader:
         return X.values, y.values
 
 # Example Usage
-file_path = r"C:\Users\MSI\Desktop\data.csv"
+file_path = r"CancerPrediction/data/processed_data.csv"
 loader = CancerDataLoader(file_path)
 X, y = loader.get_features_labels()
 print(X.shape, y.shape)
