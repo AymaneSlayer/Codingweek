@@ -43,7 +43,7 @@ Schiller-Number of sexual partners-Hormonal Contraceptives (years)-Age log-Citol
 
 ### Prompt 1: Missing Values 
 "Écris un code simple pour vérifier s'il y a des valeurs manquantes dans le dataset et suggérer comment les traiter"
-==>
+```bash
 #Vérification des valeurs manquantes
 print("Valeurs manquantes avant imputation:")
 print(data.isnull().sum())
@@ -57,10 +57,10 @@ for col in data.columns:
 #Vérification après imputation
 print("\nValeurs manquantes après imputation:")
 print(data.isnull().sum())
-
+```
 ### Prompt 2: Outliers
 "Écris un code simple pour détecter et gérer les outliers sur les colonnes avec une distribution très asymétrique, en appliquant une transformation logarithmique et une winsorisation."
-==>
+```bash
 #Pour les colonnes 'Age' et 'First sexual intercourse'
 colonnes_a_traiter = ['Age', 'First sexual intercourse']
 for col in colonnes_a_traiter:
@@ -70,11 +70,10 @@ for col in colonnes_a_traiter:
     #Winsorisation pour limiter les valeurs extrêmes
     data_cleaned[col + '_log_winsorized'] = winsorize(data_cleaned[col + '_log'], limits=(0.05, 0.05))
     print(f"Colonne '{col}' (skewness = {skew_val:.2f}): transformation log et winsorisation appliquées.")
-
+```
 
 ### Prompt 3: Class Imbalance
-"Écris un code simple pour appliquer SMOTE pour équilibrer le dataset (cas d'un déséquilibre significatif, par exemple 85% 'No risk' et 15% 'At risk')."
-==>
+```bash
 #Vérification de la répartition de la cible
 print("Répartition des classes avant SMOTE:")
 print(y.value_counts())
@@ -86,7 +85,7 @@ X_train_res, y_train_res = smote.fit_resample(X_train_imputed, y_train)
 #Affichage de la nouvelle répartition
 print("\nRépartition des classes après SMOTE:")
 print(pd.Series(y_train_res).value_counts())
-
+```
 ### Prompt 4: Corrélation
 "écris moi un code qui affiche la matrice de corrélation et supprime les features trop corrélées (seuil > 0.8)."
 ==>
