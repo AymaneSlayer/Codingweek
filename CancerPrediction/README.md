@@ -90,6 +90,7 @@ print(pd.Series(y_train_res).value_counts())
 ### Prompt 4: Corrélation
 "écris moi un code qui affiche la matrice de corrélation et supprime les features trop corrélées (seuil > 0.8)."
 ==>
+```bash
 #Ajout de la colonne 'Biopsy' au DataFrame final
 data_final = nouveau_data.copy()
 #Retrait des colonnes non nécessaires
