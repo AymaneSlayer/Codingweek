@@ -39,6 +39,8 @@ We trained and optimized three models—XGBoost, CatBoost, and SVM (with imputat
 SHAP was used to interpret the model’s predictions. The top influencing features were:
 Schiller-Number of sexual partners-Hormonal Contraceptives (years)-Age log-Citology, in this order.We got these results by A TreeExplainer that got applied on the XGBoost model to generate SHAP values using the test set.A waterfall plot is produced for a single observation (the first instance from the test set) to visually demonstrate how each feature contributes to pushing the model output toward a particular prediction
 
+##
+
 ##  Insights from Prompt Engineering
 
 We will declare the prompts used in the Data Preprocessing task in our project
@@ -91,7 +93,6 @@ print(pd.Series(y_train_res).value_counts())
 ```
 ### Prompt 4: Corrélation
 "écris moi un code qui affiche la matrice de corrélation et supprime les features trop corrélées (coefficient de coorélation > 0.8)."
-==>
 ```bash
 #Ajout de la colonne 'Biopsy' au DataFrame final
 data_final = nouveau_data.copy()
@@ -135,4 +136,11 @@ if target_col in data_final_reduced.columns:
     print(data_final_reduced[target_col].value_counts(normalize=True) * 100)
 else:
     print(f"\nATTENTION : la colonne '{target_col}' n'existe pas.")
+```
+Some insights concerning the prompts:
+  The prompts proved highly effective in breaking down complex preprocessing tasks into clear, manageable steps. They guided the process by clearly addressing 
+  missing values, outlier management, class imbalance, and correlation analysis, which helped us alot especially when we had to choose a method between a bunch of 
+  them (Oversampling (SMOTE),Undersampling,Class-weighting technique).
+  This approach made the project more reproducible.However, there is little to no room for improvement except exploring other methods that could make a better 
+  memory optimisation, but we chose the simpler methods over efficiency so we can have a better understanding.
 
