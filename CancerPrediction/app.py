@@ -6,6 +6,8 @@ import shap
 import matplotlib.pyplot as plt
 import os
 import base64
+import warnings
+warnings.filterwarnings("ignore")
 
 # --- Fonction pour charger et encoder l'image locale en base64 ---
 def get_base64_of_bin_file(bin_file):
@@ -49,6 +51,10 @@ st.markdown(
         border: 2px solid #FF5733;
         border-radius: 5px;
         padding: 4px;
+    }
+    /* Changer la couleur de l'écriture en dark black */
+    .stApp, .stApp * {
+        color: #000000 !important;
     }
     </style>
     """,
