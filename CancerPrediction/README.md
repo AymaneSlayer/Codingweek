@@ -47,6 +47,11 @@ The program includes a function that goes through each column of your DataFrame 
 
 The program uses SHAP to show how much each feature affects the predictions of the XGBoost model. A TreeExplainer calculates SHAP values, and a waterfall plot displays these values for one example, showing the contribution of each feature. This makes it easier to understand why the model makes certain predictions.
 
+## Streamlit Interface
+
+We chose Streamlit over Flask because it’s much easier and faster to set up, with built-in components for interactive interfaces. Our app uses a custom background and CSS to style the sidebar and input fields. We also use caching to load our XGBoost model quickly. Additionally, we integrated SHAP to explain the model’s predictions by generating a waterfall plot that shows each feature’s impact on the risk score. This combination of tools makes our cervical cancer risk prediction tool both efficient and user-friendly.
+
+
 ##  Insights from Prompt Engineering
 
 We will declare the prompts used in the Data Preprocessing task in our project
