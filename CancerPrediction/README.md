@@ -41,6 +41,8 @@ Schiller-Number of sexual partners-Hormonal Contraceptives (years)-Age log-Citol
 
 ##  Insights from Prompt Engineering
 
+We will declare the prompts used in the Data Preprocessing task in our project
+
 ### Prompt 1: Missing Values 
 "Écris un code simple pour vérifier s'il y a des valeurs manquantes dans le dataset et suggérer comment les traiter"
 ```bash
@@ -73,6 +75,7 @@ for col in colonnes_a_traiter:
 ```
 
 ### Prompt 3: Class Imbalance
+"Écris un code simple pour appliquer SMOTE pour équilibrer le dataset (cas d'un déséquilibre significatif, par exemple 85% 'No risk' et 15% 'At risk')."
 ```bash
 #Vérification de la répartition de la cible
 print("Répartition des classes avant SMOTE:")
@@ -87,7 +90,7 @@ print("\nRépartition des classes après SMOTE:")
 print(pd.Series(y_train_res).value_counts())
 ```
 ### Prompt 4: Corrélation
-"écris moi un code qui affiche la matrice de corrélation et supprime les features trop corrélées (seuil > 0.8)."
+"écris moi un code qui affiche la matrice de corrélation et supprime les features trop corrélées (coefficient de coorélation > 0.8)."
 ==>
 ```bash
 #Ajout de la colonne 'Biopsy' au DataFrame final
