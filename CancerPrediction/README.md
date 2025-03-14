@@ -39,7 +39,13 @@ We trained and optimized three models—XGBoost, CatBoost, and SVM (with imputat
 SHAP was used to interpret the model’s predictions. The top influencing features were:
 Schiller-Number of sexual partners-Hormonal Contraceptives (years)-Age log-Citology, in this order.We got these results by A TreeExplainer that got applied on the XGBoost model to generate SHAP values using the test set.A waterfall plot is produced for a single observation (the first instance from the test set) to visually demonstrate how each feature contributes to pushing the model output toward a particular prediction
 
-##
+## Memory Optimization
+
+The program includes a function that goes through each column of your DataFrame and converts the data types to smaller, more efficient types. For example, it changes larger integer and float types to smaller ones when possible, and turns text columns into categorical data. This helps reduce the memory usage of your dataset (52%), making the program run faster and handle larger amounts of data more easily.
+
+## SHAP Interpretability
+
+The program uses SHAP to show how much each feature affects the predictions of the XGBoost model. A TreeExplainer calculates SHAP values, and a waterfall plot displays these values for one example, showing the contribution of each feature. This makes it easier to understand why the model makes certain predictions.
 
 ##  Insights from Prompt Engineering
 
