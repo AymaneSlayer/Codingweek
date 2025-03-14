@@ -75,7 +75,7 @@ explainer = shap.TreeExplainer(model)
 # =============================
 # 3. INTERFACE STREAMLIT
 # =============================
-st.title("🩺dépistage du cancer du col de l'utérus")
+st.title("🩺Dépistage du cancer du col de l'utérus")
 
 # Barre latérale pour la saisie des informations du patient
 st.sidebar.header("📝 Informations du patient")
