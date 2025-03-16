@@ -231,12 +231,12 @@ def reduce_memory_usage(df):
 
 # Application de la réduction de la consommation mémoire
 data_final_reduced_optimized = reduce_memory_usage(data_final_reduced)
-
+data_final_reduced_optimized.to_csv('processed_data.csv', index=False)
 if target_col not in data_final_reduced_optimized.columns:
     print("Impossible de procéder à la modélisation : cible introuvable.")
     import sys
     sys.exit()
-
+"""
 # =====================================================
 # Préparation des données pour la modélisation
 # =====================================================
@@ -412,3 +412,4 @@ shap.waterfall_plot(shap.Explanation(values=sv[0],  # Valeurs SHAP pour la premi
 
 # Affichage du graphique SHAP avec Matplotlib
 plt.show()
+"""
