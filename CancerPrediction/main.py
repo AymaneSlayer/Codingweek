@@ -29,8 +29,7 @@ warnings.filterwarnings("ignore")
 # =====================================================
 # Chargement et prétraitement des données
 # =====================================================
-url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00383/risk_factors_cervical_cancer.csv"
-data = pd.read_csv(url, header=0)
+data = pd.read_csv(r'CancerPrediction/data/data.csv')
 data = data.replace('?', pd.NA)  # Remplacer '?' par NA
 data = data.apply(pd.to_numeric, errors='coerce')  # Conversion en valeurs numériques
 print(data.head())
@@ -231,12 +230,12 @@ def reduce_memory_usage(df):
 
 # Application de la réduction de la consommation mémoire
 data_final_reduced_optimized = reduce_memory_usage(data_final_reduced)
-data_final_reduced_optimized.to_csv('processed_data.csv', index=False)
+
 if target_col not in data_final_reduced_optimized.columns:
     print("Impossible de procéder à la modélisation : cible introuvable.")
     import sys
     sys.exit()
-"""
+
 # =====================================================
 # Préparation des données pour la modélisation
 # =====================================================
@@ -412,4 +411,3 @@ shap.waterfall_plot(shap.Explanation(values=sv[0],  # Valeurs SHAP pour la premi
 
 # Affichage du graphique SHAP avec Matplotlib
 plt.show()
-"""
